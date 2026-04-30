@@ -1,6 +1,6 @@
 /**
  * ClaimCard — displays a single extracted claim with its verdict,
- * confidence, and evidence.
+ * confidence, claim type, and evidence.
  */
 
 const STATUS_ICONS = {
@@ -8,10 +8,18 @@ const STATUS_ICONS = {
   Contradicted: '❌',
   Mixed: '⚠️',
   Unknown: '❓',
+  Unverifiable: '🔮',
+};
+
+const TYPE_LABELS = {
+  Factual: null, // Don't show a badge for factual (it's the default)
+  Opinion: '💭 Opinion',
+  Unverifiable: '🔮 Unverifiable',
 };
 
 export default function ClaimCard({ claim, index }) {
   const statusClass = claim.status.toLowerCase();
+  const typeBadge = claim.claim_type ? TYPE_LABELS[claim.claim_type] : null;
 
   return (
     <div
@@ -19,9 +27,14 @@ export default function ClaimCard({ claim, index }) {
       style={{ animationDelay: `${index * 80}ms` }}
     >
       <div className="claim-card-header">
-        <span className={`claim-status-badge ${statusClass}`}>
-          {STATUS_ICONS[claim.status] || '❓'} {claim.status}
-        </span>
+        <div className="claim-badges">
+          <span className={`claim-status-badge ${statusClass}`}>
+            {STATUS_ICONS[claim.status] || '❓'} {claim.status}
+          </span>
+          {typeBadge && (
+            <span className="claim-type-badge">{typeBadge}</span>
+          )}
+        </div>
         <span className="claim-confidence">
           {Math.round(claim.confidence * 100)}% confidence
         </span>

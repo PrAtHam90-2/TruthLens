@@ -13,6 +13,14 @@ class ClaimStatus(str, Enum):
     CONTRADICTED = "Contradicted"
     MIXED = "Mixed"
     UNKNOWN = "Unknown"
+    UNVERIFIABLE = "Unverifiable"
+
+
+class ClaimType(str, Enum):
+    """Classification of what kind of claim was extracted."""
+    FACTUAL = "Factual"
+    OPINION = "Opinion"
+    UNVERIFIABLE = "Unverifiable"
 
 
 class AnalyzeRequest(BaseModel):
@@ -29,6 +37,10 @@ class AnalyzeRequest(BaseModel):
 class ClaimResult(BaseModel):
     """Analysis result for a single extracted claim."""
     claim: str = Field(..., description="The atomic factual claim extracted from the text.")
+    claim_type: ClaimType = Field(
+        default=ClaimType.FACTUAL,
+        description="Whether the claim is factual, opinion-based, or unverifiable.",
+    )
     status: ClaimStatus = Field(..., description="Classification of the claim.")
     evidence: str = Field(..., description="Supporting or refuting evidence snippet.")
     confidence: float = Field(

@@ -3,16 +3,16 @@ Core analysis orchestrator.
 
 Pipeline:
 1. Extract atomic claims from input text (LLM, with heuristic fallback).
-2. For each claim, retrieve evidence from the trusted corpus.
-3. Classify each claim as Supported / Contradicted / Mixed / Unknown.
-4. Calibrate confidence using multi-factor scoring.
+2. Classify each claim as Factual / Opinion / Unverifiable.
+3. For FACTUAL claims: retrieve evidence, classify, calibrate confidence.
+4. For OPINION/UNVERIFIABLE claims: skip verification, assign Unverifiable status.
 5. Compute an overall verdict and confidence.
 """
 
 import logging
 from typing import List
 
-from app.models.schemas import AnalyzeResponse, ClaimResult, ClaimStatus
+from app.models.schemas import AnalyzeResponse, ClaimResult, ClaimStatus, ClaimType
 from app.services.llm_client import GroqLLMClient
 from app.services.corpus import retrieve_evidence
 from app.services.fallback import extract_claims_heuristic
@@ -47,11 +47,39 @@ async def analyze_text(text: str) -> AnalyzeResponse:
         extraction_method = "heuristic"
 
     # ------------------------------------------------------------------
-    # Step 2, 3 & 4: Retrieve evidence + Classify + Calibrate
+    # Step 2–4: Classify type → Route → Verify factual claims
     # ------------------------------------------------------------------
     claim_results: List[ClaimResult] = []
 
     for claim_text in claims:
+        # --- Step 2: Classify claim type (Factual / Opinion / Unverifiable) ---
+        claim_type = ClaimType.FACTUAL  # default
+        type_reason = ""
+        try:
+            type_result = await _llm_client.classify_claim_type(claim_text)
+            claim_type = ClaimType(type_result["claim_type"])
+            type_reason = type_result.get("reason", "")
+        except Exception as e:
+            logger.warning(f"Claim type classification failed for '{claim_text[:50]}…': {e}")
+            # Default to Factual so it goes through verification
+            claim_type = ClaimType.FACTUAL
+
+        # --- Step 3: Route based on claim type ---
+        if claim_type in (ClaimType.OPINION, ClaimType.UNVERIFIABLE):
+            # Skip evidence retrieval and fact-checking for non-factual claims
+            claim_results.append(
+                ClaimResult(
+                    claim=claim_text,
+                    claim_type=claim_type,
+                    status=ClaimStatus.UNVERIFIABLE,
+                    evidence=f"This claim is {claim_type.value.lower()} and cannot be objectively verified. {type_reason}",
+                    confidence=0.55,
+                    confidence_reason=f"Low confidence assigned because this is a {claim_type.value.lower()} claim, not a verifiable factual statement.",
+                )
+            )
+            continue
+
+        # --- Step 4: Full verification pipeline for FACTUAL claims ---
         # Retrieve evidence from corpus
         evidence_match = retrieve_evidence(claim_text)
         has_corpus = evidence_match is not None
@@ -80,9 +108,6 @@ async def analyze_text(text: str) -> AnalyzeResponse:
             # Determine if LLM and corpus agree
             llm_corpus_agree = True  # default
             if has_corpus:
-                # Simple heuristic: if LLM says Contradicted and corpus has evidence,
-                # or LLM says Supported and corpus has evidence, they agree.
-                # If LLM says Unknown/Mixed with strong corpus evidence, they disagree.
                 if status_str in ("Unknown", "Mixed") and corpus_entry.evidence_strength > 0.8:
                     llm_corpus_agree = False
 
@@ -117,6 +142,7 @@ async def analyze_text(text: str) -> AnalyzeResponse:
         claim_results.append(
             ClaimResult(
                 claim=claim_text,
+                claim_type=ClaimType.FACTUAL,
                 status=ClaimStatus(status_str),
                 evidence=evidence_display,
                 confidence=round(final_confidence, 2),
@@ -133,6 +159,14 @@ async def analyze_text(text: str) -> AnalyzeResponse:
     uncertainty_parts = []
     if extraction_method == "heuristic":
         uncertainty_parts.append("Claims were extracted using heuristics (LLM unavailable).")
+
+    # Note if any claims were non-factual
+    non_factual = sum(1 for c in claim_results if c.claim_type != ClaimType.FACTUAL)
+    if non_factual > 0:
+        uncertainty_parts.append(
+            f"{non_factual} claim(s) were classified as opinion/unverifiable and skipped from fact-checking."
+        )
+
     uncertainty_parts.append(
         "Analysis is based on a limited trusted corpus and LLM reasoning. "
         "Results should be treated as indicative, not definitive."
@@ -159,49 +193,63 @@ def _compute_overall_verdict(
             "No verifiable claims were found in the text.",
         )
 
+    # Only consider factual claims for the overall verdict
+    factual_claims = [c for c in claims if c.claim_type == ClaimType.FACTUAL]
+
+    # If ALL claims are opinion/unverifiable, return Unverifiable verdict
+    if not factual_claims:
+        avg_conf = sum(c.confidence for c in claims) / len(claims)
+        return (
+            ClaimStatus.UNVERIFIABLE,
+            round(avg_conf, 2),
+            "All extracted claims are opinions or unverifiable statements. No factual claims to verify.",
+        )
+
     status_counts = {s: 0 for s in ClaimStatus}
-    total_confidence = 0.0
-
-    for c in claims:
+    for c in factual_claims:
         status_counts[c.status] += 1
-        total_confidence += c.confidence
 
-    n = len(claims)
+    n = len(factual_claims)
 
-    # Use calibrated overall confidence
+    # Use calibrated overall confidence (factual claims only)
     overall_confidence = calibrate_overall(
-        claim_scores=[c.confidence for c in claims],
-        claim_statuses=[c.status.value for c in claims],
+        claim_scores=[c.confidence for c in factual_claims],
+        claim_statuses=[c.status.value for c in factual_claims],
     )
 
     # Decision logic
     if status_counts[ClaimStatus.CONTRADICTED] == n:
         verdict = ClaimStatus.CONTRADICTED
-        explanation = "All claims in the text are contradicted by trusted evidence."
+        explanation = "All factual claims in the text are contradicted by trusted evidence."
     elif status_counts[ClaimStatus.SUPPORTED] == n:
         verdict = ClaimStatus.SUPPORTED
-        explanation = "All claims in the text are supported by trusted evidence."
+        explanation = "All factual claims in the text are supported by trusted evidence."
     elif status_counts[ClaimStatus.UNKNOWN] == n:
         verdict = ClaimStatus.UNKNOWN
-        explanation = "None of the claims could be verified against the trusted corpus."
+        explanation = "None of the factual claims could be verified against the trusted corpus."
     elif status_counts[ClaimStatus.CONTRADICTED] > 0 and status_counts[ClaimStatus.SUPPORTED] > 0:
         verdict = ClaimStatus.MIXED
         explanation = (
             f"The text contains a mix of supported ({status_counts[ClaimStatus.SUPPORTED]}) "
-            f"and contradicted ({status_counts[ClaimStatus.CONTRADICTED]}) claims."
+            f"and contradicted ({status_counts[ClaimStatus.CONTRADICTED]}) factual claims."
         )
     elif status_counts[ClaimStatus.CONTRADICTED] > 0:
         verdict = ClaimStatus.CONTRADICTED
         explanation = (
-            f"{status_counts[ClaimStatus.CONTRADICTED]} of {n} claims are contradicted by evidence."
+            f"{status_counts[ClaimStatus.CONTRADICTED]} of {n} factual claims are contradicted by evidence."
         )
     elif status_counts[ClaimStatus.SUPPORTED] > 0:
         verdict = ClaimStatus.SUPPORTED
         explanation = (
-            f"{status_counts[ClaimStatus.SUPPORTED]} of {n} claims are supported by evidence."
+            f"{status_counts[ClaimStatus.SUPPORTED]} of {n} factual claims are supported by evidence."
         )
     else:
         verdict = ClaimStatus.MIXED
-        explanation = "The analysis produced mixed results across the claims."
+        explanation = "The analysis produced mixed results across the factual claims."
+
+    # Append non-factual note if applicable
+    non_factual = len(claims) - len(factual_claims)
+    if non_factual > 0:
+        explanation += f" ({non_factual} opinion/unverifiable claim(s) were excluded from the verdict.)"
 
     return verdict, overall_confidence, explanation

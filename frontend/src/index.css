@@ -43,6 +43,10 @@
   --color-unknown-bg: rgba(107, 114, 128, 0.1);
   --color-unknown-border: rgba(107, 114, 128, 0.3);
 
+  --color-unverifiable: #8b5cf6;
+  --color-unverifiable-bg: rgba(139, 92, 246, 0.1);
+  --color-unverifiable-border: rgba(139, 92, 246, 0.3);
+
   /* Typography */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
@@ -403,6 +407,9 @@ body::before {
 .verdict-card.status-unknown::before {
   background: linear-gradient(90deg, var(--color-unknown), transparent);
 }
+.verdict-card.status-unverifiable::before {
+  background: linear-gradient(90deg, var(--color-unverifiable), transparent);
+}
 
 .verdict-header {
   display: flex;
@@ -439,6 +446,11 @@ body::before {
   background: var(--color-mixed-bg);
   color: var(--color-mixed);
   border: 1px solid var(--color-mixed-border);
+}
+.verdict-badge.unverifiable {
+  background: var(--color-unverifiable-bg);
+  color: var(--color-unverifiable);
+  border: 1px solid var(--color-unverifiable-border);
 }
 .verdict-badge.unknown {
   background: var(--color-unknown-bg);
@@ -567,6 +579,7 @@ body::before {
 .claim-card.status-contradicted::before { background: var(--color-contradicted); }
 .claim-card.status-mixed::before { background: var(--color-mixed); }
 .claim-card.status-unknown::before { background: var(--color-unknown); }
+.claim-card.status-unverifiable::before { background: var(--color-unverifiable); }
 
 .claim-card-header {
   display: flex;
@@ -575,6 +588,27 @@ body::before {
   margin-bottom: var(--space-md);
   flex-wrap: wrap;
   gap: var(--space-sm);
+}
+
+.claim-badges {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.claim-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  background: var(--color-unverifiable-bg);
+  color: var(--color-unverifiable);
+  border: 1px solid var(--color-unverifiable-border);
 }
 
 .claim-status-badge {
@@ -603,6 +637,11 @@ body::before {
   background: var(--color-mixed-bg);
   color: var(--color-mixed);
   border: 1px solid var(--color-mixed-border);
+}
+.claim-status-badge.unverifiable {
+  background: var(--color-unverifiable-bg);
+  color: var(--color-unverifiable);
+  border: 1px solid var(--color-unverifiable-border);
 }
 .claim-status-badge.unknown {
   background: var(--color-unknown-bg);
