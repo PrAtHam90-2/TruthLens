@@ -611,6 +611,160 @@ body::before {
   border: 1px solid var(--color-unverifiable-border);
 }
 
+.evidence-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.evidence-source-corpus {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+.evidence-source-dynamic {
+  background: rgba(20, 184, 166, 0.1);
+  color: #14b8a6;
+  border: 1px solid rgba(20, 184, 166, 0.3);
+}
+.evidence-source-semantic {
+  background: rgba(139, 92, 246, 0.1);
+  color: #8b5cf6;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+.evidence-source-weak {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+.evidence-source-llm {
+  background: rgba(99, 102, 241, 0.1);
+  color: #6366f1;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+.evidence-source-none {
+  background: rgba(107, 114, 128, 0.1);
+  color: #6b7280;
+  border: 1px solid rgba(107, 114, 128, 0.3);
+}
+
+.evidence-source-count {
+  background: rgba(99, 102, 241, 0.1);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+/* --- Evidence Panel (multi-source fusion) --- */
+.evidence-panel-wrapper {
+  margin-top: var(--space-sm);
+}
+
+.evidence-panel-toggle {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  font-family: var(--font-sans);
+  color: var(--color-accent-hover);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  width: 100%;
+  text-align: left;
+}
+
+.evidence-panel-toggle:hover {
+  background: var(--color-bg-glass);
+  border-color: var(--color-accent);
+}
+
+.evidence-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+  animation: fadeIn 0.25s ease-out;
+}
+
+.evidence-item {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  transition: border-color var(--transition-fast);
+}
+
+.evidence-item:hover {
+  border-color: rgba(148, 163, 184, 0.25);
+}
+
+.evidence-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
+.evidence-item-type {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.evidence-item-text {
+  font-size: 0.82rem;
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.evidence-item-url {
+  font-size: 0.72rem;
+  color: var(--color-accent);
+  text-decoration: none;
+  display: inline-block;
+  margin-top: 0.2rem;
+  word-break: break-all;
+}
+
+.evidence-item-url:hover {
+  color: var(--color-accent-hover);
+  text-decoration: underline;
+}
+
+/* Role badges */
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+}
+
+.role-supporting {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.role-conflicting {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.role-neutral {
+  background: rgba(107, 114, 128, 0.1);
+  color: #6b7280;
+  border: 1px solid rgba(107, 114, 128, 0.3);
+}
+
 .claim-status-badge {
   display: inline-flex;
   align-items: center;

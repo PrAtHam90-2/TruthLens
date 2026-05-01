@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"
 
+    # Retrieval
+    enable_dynamic_retrieval: bool = True  # Wikipedia fallback for corpus misses
+    enable_semantic_retrieval: bool = True  # TF-IDF semantic search against corpus
+    semantic_min_similarity: float = 0.10  # Minimum cosine similarity threshold
+
     # CORS
     frontend_origin: str = "http://localhost:5173"
 

@@ -9,6 +9,15 @@ const VERDICT_ICONS = {
   Contradicted: '❌',
   Mixed: '⚠️',
   Unknown: '❓',
+  Unverifiable: '🔘',
+};
+
+const VERDICT_DISPLAY = {
+  Supported: 'Supported',
+  Contradicted: 'Contradicted',
+  Mixed: 'Partially Verified',
+  Unknown: 'Unknown',
+  Unverifiable: 'Unverifiable',
 };
 
 export default function ResultsView({ data }) {
@@ -20,7 +29,7 @@ export default function ResultsView({ data }) {
       <div className={`verdict-card status-${verdictClass}`}>
         <div className="verdict-header">
           <span className={`verdict-badge ${verdictClass}`}>
-            {VERDICT_ICONS[data.verdict] || '❓'} {data.verdict}
+            {VERDICT_ICONS[data.verdict] || '❓'} {VERDICT_DISPLAY[data.verdict] || data.verdict}
           </span>
 
           <div className="confidence-display">

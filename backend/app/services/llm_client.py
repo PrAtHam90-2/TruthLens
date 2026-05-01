@@ -97,24 +97,63 @@ Input: "Water fluoridation is basically poisoning people, and the government kno
 Output: ["Water fluoridation is poisoning people.", "The government knows water fluoridation is harmful.", "The government is not taking action on water fluoridation."]
 """
 
-CLASSIFY_TYPE_SYSTEM = "You are an expert at distinguishing factual claims from opinions and unverifiable statements. You are precise and conservative."
+CLASSIFY_TYPE_SYSTEM = """You are an expert at distinguishing factual claims from opinions and unverifiable statements.
+
+CRITICAL RULE: A claim does NOT have to be TRUE to be "Factual". If it makes an assertion about the physical world that can be tested, measured, or checked against evidence, it is Factual — even if the assertion is false, absurd, or a conspiracy theory.
+
+- "The Earth is flat" = FACTUAL (testable, even though false)
+- "Vaccines contain microchips" = FACTUAL (testable, even though false)
+- "5G spreads COVID" = FACTUAL (testable causal claim)
+- "The moon landing was fake" = FACTUAL (testable historical claim)
+- "NASA cannot be trusted" = OPINION (subjective value judgment)
+- "I think vaccines are bad" = OPINION (personal belief)
+"""
 
 CLASSIFY_TYPE_PROMPT = """Classify the following claim into one of three types:
 
-- **Factual**: An objective, testable statement about the real world that can be verified or refuted with evidence (e.g., "The Earth is round", "Vaccines contain mercury", "COVID-19 originated in Wuhan").
-- **Opinion**: A subjective value judgment, personal belief, preference, or normative statement that cannot be objectively proven true or false (e.g., "NASA cannot be trusted", "The government is corrupt", "Pizza is the best food").
-- **Unverifiable**: A claim that is too vague, speculative, or hypothetical to verify with evidence (e.g., "Something big is coming", "They don't want you to know the truth", "Everything happens for a reason").
+## Types
+
+- **Factual**: An assertion about the real world that can, in principle, be verified or refuted with evidence. This includes:
+  - Scientific claims (true or false): "The Earth is flat", "Water boils at 100°C"
+  - Causal claims: "5G causes cancer", "Vaccines cause autism"
+  - Historical claims: "The moon landing was faked", "The Holocaust happened"
+  - Existence claims: "Vaccines contain microchips", "Chemtrails are real"
+  - Statistical/quantitative claims: "90% of doctors agree", "Sea level has risen 20cm"
+  - Conspiracy theories that make testable assertions: "The government is hiding aliens at Area 51"
+  
+  **Key test**: Could evidence potentially prove or disprove this? If yes → Factual.
+  
+  A claim does NOT need to be true or mainstream to be Factual. False claims, conspiracy theories, and misinformation ARE factual claims if they assert something testable about reality.
+
+- **Opinion**: A subjective value judgment, preference, or normative statement that CANNOT be objectively tested. This includes:
+  - Trust/distrust judgments: "NASA cannot be trusted", "Scientists are dishonest"
+  - Preferences: "Pizza is the best food", "Country life is better than city life"
+  - Normative statements: "The government should do more", "We need stricter laws"
+  - Emotional reactions: "This is disgusting", "I love science"
+  
+  **Key test**: Does this express a personal evaluation rather than a claim about reality? If yes → Opinion.
+  
+  NOTE: "I think X" where X is a factual claim is STILL Factual — the "I think" is just hedging. For example:
+  - "I think the moon landing was fake" → Factual (the core claim is testable)
+  - "I think vaccines are bad" → Opinion (bad is a value judgment)
+
+- **Unverifiable**: A claim that is too vague, speculative, or untestable to verify. This includes:
+  - Vague prophecies: "Something big is coming", "The truth will come out"
+  - Unfalsifiable: "They control everything behind the scenes" (who? how?)
+  - Future speculation: "AI will destroy humanity" (not yet testable)
+  - Tautologies: "Everything happens for a reason"
 
 CLAIM: {claim}
 
 Respond with ONLY a JSON object (no markdown, no code fences):
 - "claim_type": one of "Factual", "Opinion", or "Unverifiable"
-- "reason": a brief 1-sentence explanation of why you chose this type
+- "reason": a brief 1-sentence explanation
 
 Examples:
-{{"claim_type": "Factual", "reason": "This is a testable scientific claim about the shape of the Earth."}}
-{{"claim_type": "Opinion", "reason": "Trustworthiness is a subjective judgment, not an objective fact."}}
-{{"claim_type": "Unverifiable", "reason": "This is too vague to test against any evidence."}}
+{{"claim_type": "Factual", "reason": "This is a testable causal claim about 5G and disease transmission."}}
+{{"claim_type": "Opinion", "reason": "Trustworthiness is a subjective value judgment, not a testable fact."}}
+{{"claim_type": "Unverifiable", "reason": "This is too vague and unfalsifiable to verify with evidence."}}
+{{"claim_type": "Factual", "reason": "Despite being a conspiracy theory, this makes a specific testable claim about a historical event."}}
 """
 
 CLASSIFY_SYSTEM = "You are a careful, conservative fact-checking assistant. You classify claims against evidence and always explain your reasoning. You avoid overconfidence."
