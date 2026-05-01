@@ -12,6 +12,7 @@ Trust model:
 
 import logging
 import re
+import asyncio
 from dataclasses import dataclass
 from typing import Optional, List
 
@@ -23,6 +24,14 @@ logger = logging.getLogger(__name__)
 _WIKI_API = "https://en.wikipedia.org/w/api.php"
 _TIMEOUT = 5.0  # seconds
 _MAX_EXTRACT_CHARS = 1200
+_MAX_RETRIES = 1  # Retry once on transient failure
+_RETRY_DELAY = 0.5  # seconds between retries
+
+# Required by Wikipedia API policy — requests without a proper User-Agent are blocked
+_HEADERS = {
+    "User-Agent": "TruthLens/1.0 (AI misinformation analysis tool; https://github.com/TruthLens)",
+    "Accept": "application/json",
+}
 
 # Simple stop-words for query term extraction
 _STOP_WORDS = frozenset({
@@ -84,7 +93,7 @@ class WikipediaRetriever:
         return result
 
     async def _do_search(self, claim_text: str) -> Optional[DynamicEvidence]:
-        """Execute the Wikipedia search pipeline."""
+        """Execute the Wikipedia search pipeline with retry on transient failures."""
         # Step 1: Extract search terms
         terms = _extract_search_terms(claim_text)
         if len(terms) < 1:
@@ -93,48 +102,69 @@ class WikipediaRetriever:
 
         search_query = " ".join(terms[:6])  # Limit to 6 terms for API
 
-        try:
-            # Step 2: Search for matching articles
-            title = await self._search_articles(search_query)
-            if not title:
-                logger.debug(f"No Wikipedia article found for: {search_query}")
-                return None
+        last_error = None
+        for attempt in range(_MAX_RETRIES + 1):
+            try:
+                # Step 2: Search for matching articles
+                title = await self._search_articles(search_query)
+                if not title:
+                    logger.debug(f"No Wikipedia article found for: {search_query}")
+                    return None
 
-            # Step 3: Fetch article extract
-            extract = await self._fetch_extract(title)
-            if not extract or len(extract) < 50:
-                logger.debug(f"Wikipedia extract too short for: {title}")
-                return None
+                # Step 3: Fetch article extract
+                extract = await self._fetch_extract(title)
+                if not extract or len(extract) < 50:
+                    logger.debug(f"Wikipedia extract too short for: {title}")
+                    return None
 
-            # Step 4: Score relevance
-            relevance = _score_relevance(terms, extract)
-            if relevance < 0.15:
-                logger.debug(
-                    f"Wikipedia result not relevant enough ({relevance:.2f}): {title}"
+                # Step 4: Score relevance
+                relevance = _score_relevance(terms, extract)
+                if relevance < 0.15:
+                    logger.debug(
+                        f"Wikipedia result not relevant enough ({relevance:.2f}): {title}"
+                    )
+                    return None
+
+                # Build URL
+                url_title = title.replace(" ", "_")
+                url = f"https://en.wikipedia.org/wiki/{url_title}"
+
+                logger.info(
+                    f"Wikipedia evidence retrieved: '{title}' "
+                    f"(relevance={relevance:.2f}, attempt={attempt + 1})"
                 )
-                return None
 
-            # Build URL
-            url_title = title.replace(" ", "_")
-            url = f"https://en.wikipedia.org/wiki/{url_title}"
+                return DynamicEvidence(
+                    snippet=_truncate_snippet(extract, max_len=500),
+                    title=title,
+                    url=url,
+                    source_name="Wikipedia",
+                    relevance_score=round(relevance, 2),
+                )
 
-            return DynamicEvidence(
-                snippet=_truncate_snippet(extract, max_len=500),
-                title=title,
-                url=url,
-                source_name="Wikipedia",
-                relevance_score=round(relevance, 2),
-            )
+            except httpx.TimeoutException:
+                last_error = f"timeout on attempt {attempt + 1}"
+                logger.warning(f"Wikipedia API timeout for '{search_query}' (attempt {attempt + 1})")
+            except httpx.HTTPStatusError as e:
+                last_error = f"HTTP {e.response.status_code} on attempt {attempt + 1}"
+                logger.warning(
+                    f"Wikipedia API HTTP {e.response.status_code} for '{search_query}' "
+                    f"(attempt {attempt + 1}): {e}"
+                )
+            except httpx.HTTPError as e:
+                last_error = f"HTTP error on attempt {attempt + 1}: {e}"
+                logger.warning(f"Wikipedia API error for '{search_query}' (attempt {attempt + 1}): {e}")
+            except Exception as e:
+                last_error = f"unexpected error: {e}"
+                logger.warning(f"Wikipedia retrieval failed for '{search_query}': {e}")
+                return None  # Don't retry unexpected errors
 
-        except httpx.TimeoutException:
-            logger.warning(f"Wikipedia API timeout for: {search_query}")
-            return None
-        except httpx.HTTPError as e:
-            logger.warning(f"Wikipedia API HTTP error: {e}")
-            return None
-        except Exception as e:
-            logger.warning(f"Wikipedia retrieval failed: {e}")
-            return None
+            # Wait before retry
+            if attempt < _MAX_RETRIES:
+                await asyncio.sleep(_RETRY_DELAY)
+
+        logger.warning(f"Wikipedia retrieval exhausted retries for '{search_query}': {last_error}")
+        return None
 
     async def _search_articles(self, query: str) -> Optional[str]:
         """Search Wikipedia for articles matching the query. Returns the best title."""
@@ -147,7 +177,7 @@ class WikipediaRetriever:
             "utf8": 1,
         }
 
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=_TIMEOUT, headers=_HEADERS) as client:
             resp = await client.get(_WIKI_API, params=params)
             resp.raise_for_status()
             data = resp.json()
@@ -172,7 +202,7 @@ class WikipediaRetriever:
             "utf8": 1,
         }
 
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=_TIMEOUT, headers=_HEADERS) as client:
             resp = await client.get(_WIKI_API, params=params)
             resp.raise_for_status()
             data = resp.json()
